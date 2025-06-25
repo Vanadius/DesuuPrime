@@ -1,5 +1,6 @@
 package com.desuu.prime;
 
+import com.desuu.prime.audio.AudioPlayerSendHandler;
 import com.desuu.prime.audio.GuildMusicManager;
 import com.desuu.prime.chat.ChatSessionManager;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -143,7 +144,7 @@ public class DesuuPrime extends ListenerAdapter {
         String url = ev.getOption("url").getAsString();
         GuildMusicManager mgr = musicManagers.computeIfAbsent(ev.getGuild().getIdLong(),
                 gid -> new GuildMusicManager(playerManager));
-        mgr.getSendHandler().connect(userVc);
+        ((AudioPlayerSendHandler) mgr.getSendHandler()).connect(userVc);
 
         // Optional beep sound to confirm command
         String beep = cfg.getProperty("beep.sound", "beep.mp3");
