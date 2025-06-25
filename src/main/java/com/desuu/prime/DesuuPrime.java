@@ -151,7 +151,7 @@ public class DesuuPrime extends ListenerAdapter {
         mgr.scheduler.queueLocal(beep);
 
         ev.reply("Loading track...").queue(hook ->
-                playerManager.loadItem(url, mgr.scheduler.createLoadHandler(hook))
+                playerManager.loadItem(url, mgr.scheduler.createLoadHandler(ev.getName(), hook))
         );
     }
 }

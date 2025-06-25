@@ -18,7 +18,7 @@ public class GuildMusicManager {
         // Create a new player instance
         this.player = playerManager.createPlayer();
         // Create and register the track scheduler to handle queueing
-        this.scheduler = new TrackScheduler(player);
+        this.scheduler = new TrackScheduler(player, playerManager);
         player.addListener(scheduler);
     }
 
