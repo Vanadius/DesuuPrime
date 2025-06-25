@@ -7,8 +7,8 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
     <artifactId>CommandHandler</artifactId>
-    <packaging>war</packaging>
-    <name>CommandHandler Maven Webapp</name>
+    <packaging>jar</packaging>
+    <name>CommandHandler</name>
     <url>http://maven.apache.org</url>
     <dependencies>
         <dependency>

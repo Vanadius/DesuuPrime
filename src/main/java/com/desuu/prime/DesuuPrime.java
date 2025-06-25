@@ -49,6 +49,7 @@ public class DesuuPrime extends ListenerAdapter {
     private final Map<String, String> personalities;
     private final AudioPlayerManager playerManager = new DefaultAudioPlayerManager();
     private final Map<Long, GuildMusicManager> musicManagers = new ConcurrentHashMap<>();
+    private final ChatSessionManager chatSessionManager = new ChatSessionManager();
 
     /* -------- entry‑point -------- */
     public static void main(String[] args) throws Exception {
@@ -116,6 +117,7 @@ public class DesuuPrime extends ListenerAdapter {
 
         // 2) **Initialize the GuildMusicManager with that same manager**
         GuildMusicManager.init(playerManager);
+        ChatSessionManager.init(cfg.getProperty("openai.api_key"));
     }
 
     /* -------- event callbacks -------- */
@@ -127,6 +129,7 @@ public class DesuuPrime extends ListenerAdapter {
     }
 
     @Override public void onMessageReceived(@Nonnull MessageReceivedEvent ev) {
+        super.onMessageReceived(ev);
         ChatSessionManager.handleMessage(ev);
     }
 
@@ -149,16 +152,15 @@ public class DesuuPrime extends ListenerAdapter {
         }
 
         String url = ev.getOption("url").getAsString();
-        GuildMusicManager mgr = musicManagers.computeIfAbsent(ev.getGuild().getIdLong(),
-                gid -> new GuildMusicManager(playerManager));
-        ((AudioPlayerSendHandler) mgr.getSendHandler()).connect(userVc);
+        GuildMusicManager mgr = GuildMusicManager.get(ev.getGuild());
+        mgr.getSendHandler().connect(userVc);
 
         // Optional beep sound to confirm command
         String beep = cfg.getProperty("beep.sound", "beep.mp3");
-        mgr.scheduler.queueLocal(beep);
+        mgr.getScheduler().queueLocal(beep);
 
         ev.reply("Loading track...").queue(hook ->
-                playerManager.loadItem(url, mgr.scheduler.createLoadHandler(ev.getName(), hook))
+                playerManager.loadItem(url, mgr.getScheduler().createLoadHandler(ev.getName(), hook))
         );
     }
 }

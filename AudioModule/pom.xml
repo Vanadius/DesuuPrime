@@ -7,8 +7,8 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
     <artifactId>AudioModule</artifactId>
-    <packaging>war</packaging>
-    <name>MusicModule Maven Webapp</name>
+    <packaging>jar</packaging>
+    <name>MusicModule</name>
     <url>http://maven.apache.org</url>
     <dependencies>
         <dependency>
