@@ -7,6 +7,11 @@
       <option name="url" value="https://repo.maven.apache.org/maven2" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="dv8tion" />
+      <option name="name" value="m2-dv8tion" />
+      <option name="url" value="https://m2.dv8tion.net/releases" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="acbaae32-9f6a-428e-abd9-607aa3f191dd" />
       <option name="name" value="acbaae32-9f6a-428e-abd9-607aa3f191dd" />
       <option name="url" value="https://jcenter.bintray.com/" />
