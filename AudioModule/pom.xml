@@ -6,7 +6,7 @@
         <artifactId>desuu-prime-main</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>MusicModule</artifactId>
+    <artifactId>AudioModule</artifactId>
     <packaging>war</packaging>
     <name>MusicModule Maven Webapp</name>
     <url>http://maven.apache.org</url>

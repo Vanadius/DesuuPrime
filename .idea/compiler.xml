@@ -6,9 +6,9 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="MusicModule" />
         <module name="CommandHandler" />
         <module name="ChatModule" />
+        <module name="AudioModule" />
       </profile>
     </annotationProcessing>
   </component>
