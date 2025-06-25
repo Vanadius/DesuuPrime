@@ -2,58 +2,111 @@ package com.desuu.prime.audio;
 
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
+import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
-import net.dv8tion.jda.api.audio.AudioSendHandler;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
+import net.dv8tion.jda.api.managers.AudioManager;
+import net.dv8tion.jda.api.interactions.InteractionHook;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Manages music playback for a single Discord guild.
+ * Holds the AudioPlayer, scheduler, and send handler.
+ * Provides load-and-play functionality for YouTube/Spotify/queries.
+ */
 public class GuildMusicManager {
-    // The AudioPlayer for this guild and its TrackScheduler (queue manager).
-    public final AudioPlayer player;
-    public final TrackScheduler scheduler;
+    private static AudioPlayerManager audioPlayerManager;
+    private static final Map<Long, GuildMusicManager> INSTANCES = new ConcurrentHashMap<>();
 
     /**
-     * Initializes the player and scheduler for a guild.
-     * @param playerManager the shared AudioPlayerManager (configured with sources)
+     * Initialize with the shared AudioPlayerManager (must be called once at startup).
      */
-    public GuildMusicManager(AudioPlayerManager playerManager) {
-        // Create a new player instance
-        this.player = playerManager.createPlayer();
-        // Create and register the track scheduler to handle queueing
-        this.scheduler = new TrackScheduler(player, playerManager);
-        player.addListener(scheduler);
+    public static void init(AudioPlayerManager manager) {
+        audioPlayerManager = manager;
+        AudioSourceManagers.registerRemoteSources(audioPlayerManager);
+        AudioSourceManagers.registerLocalSource(audioPlayerManager);
     }
 
-    /** Queue a track or play immediately if idle. */
-    public void queue(AudioTrack track) {
-        scheduler.queue(track);
+    /**
+     * Get or create the music manager for the given guild.
+     */
+    public static GuildMusicManager get(Guild guild) {
+        return INSTANCES.computeIfAbsent(guild.getIdLong(), id -> new GuildMusicManager());
     }
 
-    /** Skip the current track and play the next in queue. */
+    private final AudioPlayer player;
+    private final TrackScheduler scheduler;
+    private final AudioPlayerSendHandler sendHandler;
+
+    private GuildMusicManager() {
+        this.player = audioPlayerManager.createPlayer();
+        this.scheduler = new TrackScheduler(player, audioPlayerManager);
+        this.player.addListener(scheduler);
+        this.sendHandler = new AudioPlayerSendHandler(player);
+    }
+
+    public TrackScheduler getScheduler() {
+        return scheduler;
+    }
+
+    public AudioPlayer getPlayer() {
+        return player;
+    }
+
+    public AudioPlayerSendHandler getSendHandler() {
+        return sendHandler;
+    }
+
+    /**
+     * Load and play the given query (URL or search term).
+     * Joins the user's voice channel before playing if not already connected.
+     */
+    public void loadAndPlay(InteractionHook hook, String query) {
+        // Determine identifier for search or URL
+        String identifier;
+        if (query.startsWith("http://") || query.startsWith("https://")) {
+            identifier = query;
+        } else {
+            // Use YouTube search for non-URL queries
+            identifier = "ytsearch:" + query;
+        }
+
+        // Load item with ordered execution, send feedback via hook
+        audioPlayerManager.loadItemOrdered(
+                this,
+                identifier,
+                scheduler.createLoadHandler(identifier, hook)
+        );
+    }
+
+    /**
+     * Connect bot to the specified voice channel and set the send handler.
+     */
+    public void connectToVoice(VoiceChannel channel) {
+        AudioManager am = channel.getGuild().getAudioManager();
+        am.setSendingHandler(sendHandler);
+        am.openAudioConnection(channel);
+    }
+
+    /**
+     * Skip to the next track.
+     */
     public void skip() {
         scheduler.nextTrack();
     }
 
-    /** Pause playback. */
     public void pause() {
         player.setPaused(true);
     }
 
-    /** Resume playback if paused. */
     public void resume() {
         player.setPaused(false);
     }
 
-    /** Randomize the order of the pending queue. */
     public void shuffle() {
         scheduler.shuffleQueue();
-    }
-
-    /** Returns true if a track is currently playing. */
-    public boolean isPlaying() {
-        return player.getPlayingTrack() != null;
-    }
-
-    /** Get the AudioSendHandler to send this player’s audio to Discord. */
-    public AudioSendHandler getSendHandler() {
-        return new AudioPlayerSendHandler(player);
     }
 }

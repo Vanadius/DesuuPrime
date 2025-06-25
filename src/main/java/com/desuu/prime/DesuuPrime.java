@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 // LavaPlayer fork maintained by dev.arbjerg (artifact on Maven Central)
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
+import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
 import com.sedmelluq.discord.lavaplayer.source.youtube.YoutubeAudioSourceManager;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.JDA;
@@ -107,8 +108,14 @@ public class DesuuPrime extends ListenerAdapter {
     private DesuuPrime(Properties cfg, Map<String,String> personalities) {
         this.cfg = cfg;
         this.personalities = personalities;
-        // Audio source managers
+
+        // 1) Register your audio sources
         playerManager.registerSourceManager(new YoutubeAudioSourceManager());
+        AudioSourceManagers.registerRemoteSources(playerManager);
+        AudioSourceManagers.registerLocalSource(playerManager);
+
+        // 2) **Initialize the GuildMusicManager with that same manager**
+        GuildMusicManager.init(playerManager);
     }
 
     /* -------- event callbacks -------- */
