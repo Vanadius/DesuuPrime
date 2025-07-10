@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Slash commands "join-assistant" and "play"
  * - Music playback (YouTube) via LavaPlayer
  * - Short confirmation beep (optional) when a /play command is accepted
- * - Per‑user chat sessions with OpenAI (ChatSessionManager)
+ * - Per‑user chat sessions with DesuuPrime (ChatSessionManager)
  * - Skeleton AudioReceiveHandler left for future voice command ingestion
  */
 public class DesuuPrime extends ListenerAdapter {
@@ -88,8 +88,11 @@ public class DesuuPrime extends ListenerAdapter {
             raw.forEach((k,v)-> personalities.put(k, v.get("system")));
         }
 
-        // Initialise ChatSessionManager
-        ChatSessionManager.init(props.getProperty("openai.api_key"));
+        // Initialize Google authentication and chat session manager for Vertex
+        String projectId = props.getProperty("gcp.project_id");
+        String location = props.getProperty("gcp.location", "us-central1");
+        String model = props.getProperty("vertex.model", "chat-bison@001");
+        ChatSessionManager.init(projectId, location, model);
 
         // Build JDA
         JDA jda = JDABuilder.createDefault(props.getProperty("discord.token"))
@@ -99,10 +102,15 @@ public class DesuuPrime extends ListenerAdapter {
         // Wait until ready then register commands
         jda.awaitReady();
         jda.updateCommands().addCommands(
-                Commands.slash("join-assistant", "Invite GPT assistant to this channel")
+                Commands.slash("join-assistant", "Invite desuu to this channel")
                         .addOption(OptionType.STRING, "personality", "Assistant personality", false),
-                Commands.slash("play", "Play audio from YouTube URL")
+                Commands.slash("play", "Play audio ")
                         .addOption(OptionType.STRING, "url", "YouTube URL", true)
+                Commands.slash("skip", "skip current track "),
+                Commands.slash("pause", "pause current track "),
+                Commands.slash("resume", "resume current track "),
+                Commands.slash("join", "join current voice channel"),
+                Commands.slash("leave", "leave current voice channel")
         ).queue();
     }
 
@@ -117,7 +125,11 @@ public class DesuuPrime extends ListenerAdapter {
 
         // 2) **Initialize the GuildMusicManager with that same manager**
         GuildMusicManager.init(playerManager);
-        ChatSessionManager.init(cfg.getProperty("openai.api_key"));
+        // Initialize Google authentication and chat session manager for Vertex
+        String projectId = cfg.getProperty("gcp.project_id");
+        String location = cfg.getProperty("gcp.location", "us-central1");
+        String model = cfg.getProperty("vertex.model", "chat-bison@001");
+        ChatSessionManager.init(projectId, location, model);
     }
 
     /* -------- event callbacks -------- */

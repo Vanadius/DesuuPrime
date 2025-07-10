@@ -65,6 +65,8 @@ public class GuildMusicManager {
      * Joins the user's voice channel before playing if not already connected.
      */
     public void loadAndPlay(InteractionHook hook, String query) {
+
+
         // Determine identifier for search or URL
         String identifier;
         if (query.startsWith("http://") || query.startsWith("https://")) {
