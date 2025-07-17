@@ -86,8 +86,10 @@ public class TrackScheduler extends AudioEventAdapter {
      * Skip to the next track in the queue (or stop if queue is empty).
      */
     public void nextTrack() {
-        // Poll the next track (or null) and start it. Passing false forces an immediate switch.
-        player.startTrack(queue.poll(), false);
+        // Stopping the current track will trigger onTrackEnd, which will play the next track.
+        // This prevents a race condition where both a skip command and the track end event
+        // try to poll from the queue, causing a track to be skipped inadvertently.
+        player.stopTrack();
     }
 
     /**

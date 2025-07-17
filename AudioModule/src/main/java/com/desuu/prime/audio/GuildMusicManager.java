@@ -44,7 +44,6 @@ public class GuildMusicManager {
     private GuildMusicManager() {
         this.player = audioPlayerManager.createPlayer();
         this.scheduler = new TrackScheduler(player, audioPlayerManager);
-        this.player.addListener(scheduler);
         this.sendHandler = new AudioPlayerSendHandler(player);
     }
 
@@ -64,8 +63,8 @@ public class GuildMusicManager {
      * Load and play the given query (URL or search term).
      * Joins the user's voice channel before playing if not already connected.
      */
-    public void loadAndPlay(InteractionHook hook, String query) {
-
+    public void loadAndPlay(InteractionHook hook, String query, VoiceChannel voiceChannel) {
+        connectToVoice(voiceChannel);
 
         // Determine identifier for search or URL
         String identifier;

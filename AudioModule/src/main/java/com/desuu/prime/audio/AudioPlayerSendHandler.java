@@ -35,14 +35,4 @@ public class AudioPlayerSendHandler implements AudioSendHandler {
     public boolean isOpus() {
         return true;
     }
-
-    /**
-     * Connects this audio handler to a voice channel using JDA's AudioManager.
-     * @param channel the target AudioChannel to join
-     */
-    public void connect(AudioChannel channel) {
-        AudioManager manager = channel.getGuild().getAudioManager();
-        manager.setSendingHandler(this);
-        manager.openAudioConnection(channel);
-    }
 }

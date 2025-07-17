@@ -1,16 +1,16 @@
 package com.desuu.prime.commands;
 
+import com.desuu.prime.audio.GuildMusicManager;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
-import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
-import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
+import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
-import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.managers.AudioManager;
-
-import com.desuu.prime.audio.GuildMusicManager;
 
 /**
  * CommandHandler listens for Discord interactions and message commands,
@@ -42,78 +42,67 @@ public class CommandHandler extends ListenerAdapter {
             event.reply("This command can only be used in a server.").queue();
             return;
         }
+
+        GuildMusicManager musicManager = GuildMusicManager.get(guild);
+        AudioManager audioManager = guild.getAudioManager();
+        Member member = event.getMember();
+
         switch (command) {
             case "play": {
-                Member member = event.getMember();
-                if (member == null) {
-                    event.reply("You need to be in a voice channel to play music.").setEphemeral(true).queue();
+                // Defer reply as loading can take time and we reply via a hook later
+                event.deferReply().queue();
+
+                if (member == null || member.getVoiceState() == null || !member.getVoiceState().inAudioChannel()) {
+                    event.getHook().sendMessage("You need to be in a voice channel to play music.").setEphemeral(true).queue();
                     return;
                 }
-                VoiceChannel voiceChannel = member.getVoiceState().getChannel().asVoiceChannel();
-                if (voiceChannel == null) {
-                    event.reply("You need to join a voice channel first!").setEphemeral(true).queue();
-                    return;
-                }
-                // Join voice channel if not already connected
-                AudioManager audioManager = guild.getAudioManager();
-                if (!audioManager.isConnected() || audioManager.getConnectedChannel() != voiceChannel) {
-                    audioManager.openAudioConnection(voiceChannel);
-                }
+                // Safe to get channel now
+                VoiceChannel memberChannel = member.getVoiceState().getChannel().asVoiceChannel();
+
                 // Delegate to the GuildMusicManager to load and queue
-                GuildMusicManager musicManager = GuildMusicManager.get(guild);
                 String query = event.getOption("query").getAsString();
-                musicManager.loadAndPlay(event.getInteraction().getHook(), query);
-                event.reply("Loading track: " + query).queue();
+                musicManager.loadAndPlay(event.getHook(), query, memberChannel);
                 break;
             }
             case "skip": {
-                // Handle /skip: skip the current track
-                GuildMusicManager musicManager = GuildMusicManager.get(guild);
-               musicManager.skip();
+                if (!isBotInVoiceWithMember(event, audioManager, member)) break;
+                musicManager.skip();
                 event.reply("Skipped the current track.").queue();
                 break;
             }
             case "pause": {
-                // Handle /pause: pause playback
-                GuildMusicManager musicManager = GuildMusicManager.get(guild);
+                if (!isBotInVoiceWithMember(event, audioManager, member)) break;
                 musicManager.pause();
                 event.reply("Playback paused.").queue();
                 break;
             }
             case "resume": {
-                // Handle /resume: resume playback
-                GuildMusicManager musicManager = GuildMusicManager.get(guild);
+                if (!isBotInVoiceWithMember(event, audioManager, member)) break;
                 musicManager.resume();
                 event.reply("Playback resumed.").queue();
                 break;
             }
             case "shuffle": {
-                // Handle /shuffle: shuffle the queue
-                GuildMusicManager musicManager = GuildMusicManager.get(guild);
+                if (!isBotInVoiceWithMember(event, audioManager, member)) break;
                 musicManager.shuffle();
                 event.reply("Shuffled the queue.").queue();
                 break;
             }
             case "join": {
-                // Handle /join: join the user's voice channel
-                Member member = event.getMember();
-                if (member == null) {
-                    event.reply("You must be in a voice channel to use this command.").queue();
+                if (member == null || member.getVoiceState() == null || !member.getVoiceState().inAudioChannel()) {
+                    event.reply("You need to join a voice channel first!").setEphemeral(true).queue();
                     break;
                 }
-                VoiceChannel channel = member.getVoiceState().getChannel().asVoiceChannel();
-                if (channel == null) {
-                    event.reply("You need to join a voice channel first!").queue();
-                } else {
-                    AudioManager audioManager = guild.getAudioManager();
-                    audioManager.openAudioConnection(channel);
-                    event.reply("Joined voice channel: " + channel.getName()).queue();
-                }
+                VoiceChannel memberChannel = member.getVoiceState().getChannel().asVoiceChannel();
+                musicManager.connectToVoice(memberChannel);
+                event.reply("Joined voice channel: " + memberChannel.getName()).queue();
                 break;
             }
             case "leave": {
-                // Handle /leave: disconnect from voice channel
-                AudioManager audioManager = guild.getAudioManager();
+                if (!audioManager.isConnected()) {
+                    event.reply("I'm not in a voice channel.").setEphemeral(true).queue();
+                    break;
+                }
                 audioManager.closeAudioConnection();
                 event.reply("Left the voice channel.").queue();
                 break;
@@ -121,6 +110,31 @@ public class CommandHandler extends ListenerAdapter {
             default:
                 event.reply("Unknown command: " + command).queue();
         }
+    }
+
+    /**
+     * Checks if the bot is in a voice channel and if the interacting member is in the same channel.
+     * Sends an appropriate ephemeral reply if checks fail.
+     *
+     * @return true if all checks pass, false otherwise.
+     */
+    private boolean isBotInVoiceWithMember(SlashCommandInteractionEvent event, AudioManager audioManager, Member member) {
+        if (!audioManager.isConnected()) {
+            event.reply("I'm not currently in a voice channel.").setEphemeral(true).queue();
+            return false;
+        }
+
+        if (member == null || member.getVoiceState() == null || !member.getVoiceState().inAudioChannel()) {
+            event.reply("You must be in a voice channel to use this command.").setEphemeral(true).queue();
+            return false;
+        }
+
+        if (member.getVoiceState().getChannel() != audioManager.getConnectedChannel()) {
+            event.reply("You must be in the same voice channel as me to use this command.").setEphemeral(true).queue();
+            return false;
+        }
+
+        return true;
     }
 
     @Override
