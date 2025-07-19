@@ -12,6 +12,7 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.dv8tion.jda.api.entities.Guild;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -26,14 +27,21 @@ public class TrackScheduler extends AudioEventAdapter {
     private final AudioPlayer player;
     private final AudioPlayerManager playerManager;
     private final BlockingQueue<AudioTrack> queue;
+    private final Guild guild;
+
+    // State for interrupting playback with a notification sound
+    private boolean isPlayingNotification = false;
+    private AudioTrack interruptedTrack = null;
+    private long interruptedTrackPosition = 0;
 
     /**
      * Constructor now takes an AudioPlayer *and* its AudioPlayerManager.
      */
-    public TrackScheduler(AudioPlayer player, AudioPlayerManager playerManager) {
+    public TrackScheduler(AudioPlayer player, AudioPlayerManager playerManager, Guild guild) {
         this.player = player;
         this.playerManager = playerManager;
         this.queue = new LinkedBlockingQueue<>();
+        this.guild = guild;
         this.player.addListener(this);
     }
 
@@ -48,13 +56,19 @@ public class TrackScheduler extends AudioEventAdapter {
             public void trackLoaded(AudioTrack track) {
                 // Successfully loaded a single track – queue it for playback.
                 queue(track);
+                playNotificationSound();
             }
 
             @Override
             public void playlistLoaded(AudioPlaylist playlist) {
+                boolean soundPlayed = false;
                 // Successfully loaded a playlist – queue each track.
                 for (AudioTrack t : playlist.getTracks()) {
                     queue(t);
+                    if (!soundPlayed) {
+                        playNotificationSound();
+                        soundPlayed = true;
+                    }
                 }
             }
 
@@ -109,14 +123,20 @@ public class TrackScheduler extends AudioEventAdapter {
             @Override
             public void trackLoaded(AudioTrack track) {
                 queue(track);
+                playNotificationSound(); // Play sound on new track
                 log.info("Queued track: {}", track.getInfo().title);
                 hook.sendMessage("Queued track: " + track.getInfo().title).queue();
             }
 
             @Override
             public void playlistLoaded(AudioPlaylist playlist) {
+                boolean soundPlayed = false;
                 for (AudioTrack track : playlist.getTracks()) {
                     queue(track);
+                    if (!soundPlayed) {
+                        playNotificationSound(); // Play sound once for playlist
+                        soundPlayed = true;
+                    }
                 }
                 log.info("Queued playlist with {} tracks.", playlist.getTracks().size());
                 hook.sendMessage("Queued playlist with " + playlist.getTracks().size() + " tracks.").queue();
@@ -137,13 +157,75 @@ public class TrackScheduler extends AudioEventAdapter {
     }
 
     @Override
-    public void onTrackEnd(AudioPlayer player, AudioTrack track, AudioTrackEndReason endReason) {
-        // If the track completed normally, start the next track in queue if available.
-        if (endReason.mayStartNext) {
-            AudioTrack nextTrack = queue.poll();
-            if (nextTrack != null) {
-                player.startTrack(nextTrack, false);
+    public void onTrackEnd(AudioPlayer player, AudioTrack endedTrack, AudioTrackEndReason endReason) {
+        // Check if the track that just ended was our notification sound
+        if (isPlayingNotification) {
+            isPlayingNotification = false;
+
+            // If a track was interrupted, we resume it.
+            if (this.interruptedTrack != null) {
+                log.info("Resuming interrupted track: {}", interruptedTrack.getInfo().title);
+                // We must clone the track to play it again and seek to its previous position.
+                AudioTrack trackToResume = this.interruptedTrack.makeClone();
+                trackToResume.setPosition(this.interruptedTrackPosition);
+                player.playTrack(trackToResume);
+
+                // Clear the state
+                this.interruptedTrack = null;
+                this.interruptedTrackPosition = 0;
+            } else {
+                // No track was interrupted, so play the next song from the main queue.
+                player.startTrack(queue.poll(), false);
             }
+            return; // Our custom logic is done for this event.
         }
+
+        // Original logic for when a regular track finishes
+        if (endReason.mayStartNext) {
+            player.startTrack(queue.poll(), false);
+        }
+    }
+
+    /**
+     * Interrupts the current track to play a notification sound, then resumes.
+     * Assumes 'llama.wav' is in the application's working directory.
+     */
+    private void playNotificationSound() {
+        // Don't play a sound if the bot isn't in a voice channel or if we're already playing one.
+        if (isPlayingNotification || !guild.getAudioManager().isConnected()) {
+            return;
+        }
+
+        AudioTrack currentlyPlaying = player.getPlayingTrack();
+        if (currentlyPlaying != null) {
+            this.interruptedTrack = currentlyPlaying;
+            this.interruptedTrackPosition = currentlyPlaying.getPosition();
+        }
+
+        String soundFilePath = "llama.wav";
+        playerManager.loadItem(soundFilePath, new AudioLoadResultHandler() {
+            @Override
+            public void trackLoaded(AudioTrack track) {
+                isPlayingNotification = true;
+                // Use playTrack to immediately start, which will stop the current track.
+                player.playTrack(track);
+                log.info("Playing notification sound.");
+            }
+
+            @Override
+            public void playlistLoaded(AudioPlaylist playlist) { /* Should not happen for a .wav file */ }
+
+            @Override
+            public void noMatches() {
+                log.warn("Notification sound not found at path: {}", soundFilePath);
+                interruptedTrack = null; // Clear interruption state so playback isn't blocked
+            }
+
+            @Override
+            public void loadFailed(FriendlyException exception) {
+                log.error("Failed to load notification sound '{}': {}", soundFilePath, exception.getMessage());
+                interruptedTrack = null; // Clear interruption state
+            }
+        });
     }
 }

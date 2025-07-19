@@ -1,6 +1,7 @@
 package com.desuu.prime.commands;
 
 import com.desuu.prime.audio.GuildMusicManager;
+import com.desuu.prime.chat.ChatSessionManager;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
@@ -12,17 +13,32 @@ import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.managers.AudioManager;
 
+import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
+
 /**
- * CommandHandler listens for Discord interactions and message commands,
- * registers slash commands on startup, and delegates command handling
- * to the music manager or voice connection. Replies are sent via the interaction hook or channel.
+ * CommandHandler listens for all Discord interactions, registers slash commands on startup,
+ * and delegates command handling to the appropriate services.
  */
 public class CommandHandler extends ListenerAdapter {
 
+    private final Properties config;
+    private final Map<String, String> personalities;
+
+    public CommandHandler(Properties config, Map<String, String> personalities) {
+        this.config = config;
+        this.personalities = personalities;
+    }
+
     @Override
     public void onReady(ReadyEvent event) {
-        // Register slash commands at startup
+        // Register all slash commands globally on startup
         event.getJDA().updateCommands().addCommands(
+                // Chat Commands
+                Commands.slash("join-assistant", "Invite desuu to this channel for chat")
+                        .addOption(OptionType.STRING, "personality", "Assistant personality", false),
+                // Music Commands
                 Commands.slash("play", "Play a track")
                         .addOption(OptionType.STRING, "query", "Track name or URL", true),
                 Commands.slash("skip", "Skip the current track"),
@@ -39,27 +55,35 @@ public class CommandHandler extends ListenerAdapter {
         String command = event.getName();
         Guild guild = event.getGuild();
         if (guild == null) {
-            event.reply("This command can only be used in a server.").queue();
+            event.reply("This command can only be used in a server.").setEphemeral(true).queue();
             return;
         }
 
+        // These are needed for most music commands
         GuildMusicManager musicManager = GuildMusicManager.get(guild);
         AudioManager audioManager = guild.getAudioManager();
         Member member = event.getMember();
 
         switch (command) {
-            case "play": {
-                // Defer reply as loading can take time and we reply via a hook later
-                event.deferReply().queue();
+            // Chat Commands
+            case "join-assistant": {
+                String persona = Optional.ofNullable(event.getOption("personality"))
+                        .map(o -> o.getAsString())
+                        .orElse(config.getProperty("default_personality", "helpful"));
+                String prompt = personalities.getOrDefault(persona, personalities.get("helpful"));
+                ChatSessionManager.setSystemPrompt(event.getChannel().getIdLong(), prompt);
+                event.reply("Assistant joined with personality \"" + persona + "\"").setEphemeral(true).queue();
+                break;
+            }
 
+            // Music Commands
+            case "play": {
+                event.deferReply().queue(); // Defer reply as loading can take time
                 if (member == null || member.getVoiceState() == null || !member.getVoiceState().inAudioChannel()) {
                     event.getHook().sendMessage("You need to be in a voice channel to play music.").setEphemeral(true).queue();
                     return;
                 }
-                // Safe to get channel now
                 VoiceChannel memberChannel = member.getVoiceState().getChannel().asVoiceChannel();
-
-                // Delegate to the GuildMusicManager to load and queue
                 String query = event.getOption("query").getAsString();
                 musicManager.loadAndPlay(event.getHook(), query, memberChannel);
                 break;
@@ -108,44 +132,32 @@ public class CommandHandler extends ListenerAdapter {
                 break;
             }
             default:
-                event.reply("Unknown command: " + command).queue();
+                event.reply("Unknown command: " + command).setEphemeral(true).queue();
         }
     }
 
-    /**
-     * Checks if the bot is in a voice channel and if the interacting member is in the same channel.
-     * Sends an appropriate ephemeral reply if checks fail.
-     *
-     * @return true if all checks pass, false otherwise.
-     */
+    @Override
+    public void onMessageReceived(MessageReceivedEvent event) {
+        if (event.getAuthor().isBot()) {
+            return;
+        }
+        // Delegate message handling to the ChatSessionManager
+        ChatSessionManager.handleMessage(event);
+    }
+
     private boolean isBotInVoiceWithMember(SlashCommandInteractionEvent event, AudioManager audioManager, Member member) {
         if (!audioManager.isConnected()) {
             event.reply("I'm not currently in a voice channel.").setEphemeral(true).queue();
             return false;
         }
-
         if (member == null || member.getVoiceState() == null || !member.getVoiceState().inAudioChannel()) {
             event.reply("You must be in a voice channel to use this command.").setEphemeral(true).queue();
             return false;
         }
-
         if (member.getVoiceState().getChannel() != audioManager.getConnectedChannel()) {
             event.reply("You must be in the same voice channel as me to use this command.").setEphemeral(true).queue();
             return false;
         }
-
         return true;
-    }
-
-    @Override
-    public void onMessageReceived(MessageReceivedEvent event) {
-        // Stub for future text-based commands prefixed by @DesuuPrime mention
-        if (event.getAuthor().isBot()) {
-            return;
-        }
-        String content = event.getMessage().getContentRaw().trim();
-        if (content.startsWith(event.getJDA().getSelfUser().getAsMention())) {
-            event.getChannel().sendMessage("Text commands are not implemented yet.").queue();
-        }
     }
 }

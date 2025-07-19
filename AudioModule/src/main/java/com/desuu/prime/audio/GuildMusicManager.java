@@ -21,6 +21,8 @@ public class GuildMusicManager {
     private static AudioPlayerManager audioPlayerManager;
     private static final Map<Long, GuildMusicManager> INSTANCES = new ConcurrentHashMap<>();
 
+    private final Guild guild;
+
     /**
      * Initialize with the shared AudioPlayerManager (must be called once at startup).
      */
@@ -34,16 +36,17 @@ public class GuildMusicManager {
      * Get or create the music manager for the given guild.
      */
     public static GuildMusicManager get(Guild guild) {
-        return INSTANCES.computeIfAbsent(guild.getIdLong(), id -> new GuildMusicManager());
+        return INSTANCES.computeIfAbsent(guild.getIdLong(), id -> new GuildMusicManager(guild));
     }
 
     private final AudioPlayer player;
     private final TrackScheduler scheduler;
     private final AudioPlayerSendHandler sendHandler;
 
-    private GuildMusicManager() {
+    private GuildMusicManager(Guild guild) {
+        this.guild = guild;
         this.player = audioPlayerManager.createPlayer();
-        this.scheduler = new TrackScheduler(player, audioPlayerManager);
+        this.scheduler = new TrackScheduler(player, audioPlayerManager, guild);
         this.sendHandler = new AudioPlayerSendHandler(player);
     }
 
