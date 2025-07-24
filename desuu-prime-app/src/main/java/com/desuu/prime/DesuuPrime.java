@@ -1,13 +1,13 @@
 package com.desuu.prime;
 
-import com.desuu.prime.audio.GuildMusicManager;
 import com.desuu.prime.chat.ChatSessionManager;
+import com.desuu.prime.chat.GoogleAuthManager;
 import com.desuu.prime.commands.CommandHandler;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
-import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.requests.GatewayIntent; // <-- Import this
 import org.apache.commons.cli.*;
 
 import java.io.File;
@@ -24,6 +24,7 @@ import java.util.Properties;
 public class DesuuPrime {
 
     public static void main(String[] args) throws Exception {
+        // (Argument parsing and config loading code remains the same...)
         // 1. Parse Command-Line Arguments
         Options opts = new Options();
         opts.addOption("c", "config", true, "Path to config.properties (default: ./config.properties)");
@@ -64,17 +65,26 @@ public class DesuuPrime {
         }
 
         // 4. Initialize Core Services
-        // Initialize LavaPlayer
-        GuildMusicManager.init(new DefaultAudioPlayerManager());
+        // Music player initialization is disabled for now.
 
         // Initialize Google authentication and chat session manager for Vertex
-        String projectId = props.getProperty("gcp.project_id");
+
+        String credentialsPath = props.getProperty("gcp.credentials_path");
+        try {
+            GoogleAuthManager.init(credentialsPath);
+        } catch (Exception e) {
+            System.err.println("Could not initialize Google Authentication. Chat features will be disabled. Error: " + e.getMessage());
+            // Depending on requirements, you might want to exit here: System.exit(1);
+        }
+        String projectNumber = props.getProperty("gcp.project_number");
         String location = props.getProperty("gcp.location", "us-central1");
-        String model = props.getProperty("vertex.model", "chat-bison@001");
-        ChatSessionManager.init(projectId, location, model);
+        String endpointId = props.getProperty("vertex.endpoint_id");
+        ChatSessionManager.init(projectNumber, location, endpointId);
 
         // 5. Build and Launch JDA
         JDA jda = JDABuilder.createDefault(props.getProperty("discord.token"))
+                // THIS IS THE LINE YOU NEED TO ADD
+                .enableIntents(GatewayIntent.MESSAGE_CONTENT)
                 // Register event listeners. All logic is now in dedicated handlers.
                 .addEventListeners(new CommandHandler(props, personalities))
                 .build();

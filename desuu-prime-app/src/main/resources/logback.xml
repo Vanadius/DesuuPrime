@@ -1,0 +1,42 @@
+<configuration>
+
+    <!-- Appender to log to the console -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Appender to log to a rolling file -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/desuu-prime.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- daily rollover -->
+            <fileNamePattern>logs/desuu-prime-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+
+            <!-- each file should be at most 10MB, keep 7 days worth of history, but at most 1GB -->
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+        Set the logging level for specific libraries.
+        JDA is very verbose on DEBUG, so we keep it at INFO.
+    -->
+    <logger name="net.dv8tion.jda" level="INFO"/>
+    <logger name="com.sedmelluq.discord.lavaplayer" level="INFO"/>
+
+    <!-- Root logger: directs all logs (from your code and libraries) to the defined appenders -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+        <appender-ref ref="FILE" />
+    </root>
+
+</configuration>

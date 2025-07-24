@@ -1,17 +1,13 @@
 package com.desuu.prime.commands;
 
-import com.desuu.prime.audio.GuildMusicManager;
 import com.desuu.prime.chat.ChatSessionManager;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
-import net.dv8tion.jda.api.managers.AudioManager;
 
 import java.util.Map;
 import java.util.Optional;
@@ -37,16 +33,16 @@ public class CommandHandler extends ListenerAdapter {
         event.getJDA().updateCommands().addCommands(
                 // Chat Commands
                 Commands.slash("join-assistant", "Invite desuu to this channel for chat")
-                        .addOption(OptionType.STRING, "personality", "Assistant personality", false),
+                        .addOption(OptionType.STRING, "personality", "Assistant personality", false)
                 // Music Commands
-                Commands.slash("play", "Play a track")
-                        .addOption(OptionType.STRING, "query", "Track name or URL", true),
-                Commands.slash("skip", "Skip the current track"),
-                Commands.slash("pause", "Pause playback"),
-                Commands.slash("resume", "Resume playback"),
-                Commands.slash("shuffle", "Shuffle the queue"),
-                Commands.slash("join", "Join your voice channel"),
-                Commands.slash("leave", "Leave the voice channel")
+//                Commands.slash("play", "Play a track")
+//                        .addOption(OptionType.STRING, "query", "Track name or URL", true),
+//                Commands.slash("skip", "Skip the current track"),
+//                Commands.slash("pause", "Pause playback"),
+//                Commands.slash("resume", "Resume playback"),
+//                Commands.slash("shuffle", "Shuffle the queue"),
+//                Commands.slash("join", "Join your voice channel"),
+//                Commands.slash("leave", "Leave the voice channel")
         ).queue();
     }
 
@@ -58,11 +54,6 @@ public class CommandHandler extends ListenerAdapter {
             event.reply("This command can only be used in a server.").setEphemeral(true).queue();
             return;
         }
-
-        // These are needed for most music commands
-        GuildMusicManager musicManager = GuildMusicManager.get(guild);
-        AudioManager audioManager = guild.getAudioManager();
-        Member member = event.getMember();
 
         switch (command) {
             // Chat Commands
@@ -76,7 +67,8 @@ public class CommandHandler extends ListenerAdapter {
                 break;
             }
 
-            // Music Commands
+            // Music Commands (Handlers commented out for safety)
+            /*
             case "play": {
                 event.deferReply().queue(); // Defer reply as loading can take time
                 if (member == null || member.getVoiceState() == null || !member.getVoiceState().inAudioChannel()) {
@@ -131,8 +123,10 @@ public class CommandHandler extends ListenerAdapter {
                 event.reply("Left the voice channel.").queue();
                 break;
             }
+            */
             default:
-                event.reply("Unknown command: " + command).setEphemeral(true).queue();
+                // This will now catch any lingering music commands and inform the user.
+                event.reply("Unknown or disabled command: " + command).setEphemeral(true).queue();
         }
     }
 
@@ -145,6 +139,8 @@ public class CommandHandler extends ListenerAdapter {
         ChatSessionManager.handleMessage(event);
     }
 
+    // isBotInVoiceWithMember is no longer needed since music commands are disabled.
+    /*
     private boolean isBotInVoiceWithMember(SlashCommandInteractionEvent event, AudioManager audioManager, Member member) {
         if (!audioManager.isConnected()) {
             event.reply("I'm not currently in a voice channel.").setEphemeral(true).queue();
@@ -160,4 +156,5 @@ public class CommandHandler extends ListenerAdapter {
         }
         return true;
     }
+    */
 }
